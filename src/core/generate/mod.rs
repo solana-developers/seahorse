@@ -2,6 +2,7 @@ use crate::{
     core::{compile::ast::*, compile::build::BuildOutput, util::*, CoreError},
     match1,
 };
+use crate::core::compile::check::Ty;
 use proc_macro2::{Ident, Literal as PM2Literal, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use regex::Regex;
@@ -1016,6 +1017,8 @@ impl ToTokens for Statement {
             //     let mut y;
             //     (x, y) = (2, 3)
             // }
+            Self::ExceptHandler { .. } => todo!(),
+            Self::Try { body } => quote! { try #body },
             Self::Let {
                 undeclared,
                 target,

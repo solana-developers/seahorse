@@ -1,3 +1,4 @@
+use crate::core::clean::ast::StatementObj;
 // TODO just throwing everything into mod.rs for now, don't want to deal with keeping things clean
 // yet
 use crate::core::compile::builtin::BuiltinSource;
@@ -1089,6 +1090,12 @@ impl<'a> Context<'a> {
         let Located(loc, obj) = statement;
 
         match obj {
+            ast::StatementObj::ExceptHandler { kind, body } => {
+                self.check_block(body, None)?;
+            }
+            ast::StatementObj::Try { body } => {
+                self.check_block(body, None)?;
+            } 
             ast::StatementObj::Return { value } => {
                 let returns = Ty::Param(self.returns);
 
@@ -1224,6 +1231,12 @@ impl<'a> Context<'a> {
                 self.check_block(body, Some(scope))?;
             }
             ast::StatementObj::Break | ast::StatementObj::Continue | ast::StatementObj::Pass => {}
+            ast::StatementObj::Import { symbols } => todo!(),
+            ast::StatementObj::ImportFrom { level, path, symbols } => todo!(),
+            ast::StatementObj::Constant { name, value } => todo!(),
+            ast::StatementObj::ClassDef { name, body, bases, decorator_list } => todo!(),
+            ast::StatementObj::FunctionDef(_) => todo!(),
+            ast::StatementObj::Expression(_) => todo!(),
         }
 
         return Ok(());

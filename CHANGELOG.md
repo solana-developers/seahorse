@@ -20,7 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bug that prevented users from importing accounts from other files
 - Conditionally generate Pyth import (#93)
 - Upgrade to Pyth 0.8.0 to fix dependencies
-
+- Imports as aliases permitted with <3 from stacc
+- Arbitary params permitted and param without type derived from arbitary params with <3 from stacc
+- Import statements can be wherever with <3 from stacc
+- Functions have been upgraded to many levels with <3 from stacc
+- Allow non-constant constants maybe, with <3 from stacc
+- Allow more constants with <3 from stacc
+- Body-only implementation of Try statements with <3 from stacc
 ## [0.2.7]
 
 ### Added

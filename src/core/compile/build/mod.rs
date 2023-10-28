@@ -465,7 +465,16 @@ impl Context {
 
     fn build_statement(&mut self, statement: ast::Statement) -> CResult<Statement> {
         let statement = match statement.1 {
+            ast::StatementObj::ExceptHandler { kind, body } => {
+                let kind = kind.map(|kind| self.build_expression(kind, vec![].into())).transpose()?;
+                let body = self.build_block(body)?;
+
+                Statement::ExceptHandler { kind, body }
+            },
             ast::StatementObj::Break => Statement::Break,
+            ast::StatementObj::Try { body } => Statement::Try {
+                body: self.build_block(body)?,
+            },
             ast::StatementObj::Continue => Statement::Continue,
             ast::StatementObj::Return { value } => {
                 let value = value
@@ -571,6 +580,12 @@ impl Context {
                     _ => panic!(),
                 }
             }
+            ast::StatementObj::Import { symbols } => todo!(),
+            ast::StatementObj::ImportFrom { level, path, symbols } => todo!(),
+            ast::StatementObj::Constant { name, value } => todo!(),
+            ast::StatementObj::ClassDef { name, body, bases, decorator_list } => todo!(),
+            ast::StatementObj::FunctionDef(_) => todo!(),
+            ast::StatementObj::Expression(_) => todo!(),
         };
 
         return Ok(statement);
