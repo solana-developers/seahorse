@@ -5,7 +5,10 @@
 //! boolean ops (and/or) are separate from comparisons (==/</<=/...) which are separate from
 //! mathematicaly operations (+/-/...).
 
-use crate::core::Located;
+
+use rustpython_parser::ast::ExceptHandler;
+
+use crate::core::{Located, compile::{check::Target, builtin::pyth::TypedExpression}};
 
 /// A module - one translation unit, or one Python file.
 #[derive(Clone, Debug)]
@@ -17,6 +20,9 @@ pub struct Module {
 pub type TopLevelStatement = Located<TopLevelStatementObj>;
 #[derive(Clone, Debug)]
 pub enum TopLevelStatementObj {
+    Try {
+        body: Vec<Statement>,
+    },
     Import {
         symbols: Vec<ImportSymbol>,
     },
@@ -178,6 +184,30 @@ pub enum TyExpressionObj {
 pub type Statement = Located<StatementObj>;
 #[derive(Clone, Debug)]
 pub enum StatementObj {
+    ExceptHandler {
+        kind: Option<Expression>,
+        body: Vec<Statement>,
+    },
+    Import {
+        symbols: Vec<ImportSymbol>,
+    },
+    ImportFrom {
+        level: usize,
+        path: Vec<String>,
+        symbols: Vec<ImportSymbol>,
+    },
+    Constant {
+        name: String,
+        value: Expression,
+    },
+    ClassDef {
+        name: String,
+        body: Vec<ClassDefStatement>,
+        bases: Vec<TyExpression>,
+        decorator_list: Vec<Expression>,
+    },
+    FunctionDef(FunctionDef),
+    Expression(Expression),
     Break,
     Continue,
     Return {
@@ -218,6 +248,9 @@ pub enum StatementObj {
     For {
         target: Expression,
         iter: Expression,
+        body: Vec<Statement>,
+    },
+    Try {
         body: Vec<Statement>,
     },
 }

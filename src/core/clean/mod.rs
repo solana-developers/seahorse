@@ -8,7 +8,9 @@ use std::{
 use crate::core::{parse::ast as py, CoreError, Located, Location};
 use ast::*;
 
-enum Error {
+enum Error {ArbitraryTry,
+    ExceptHandlerKind,
+    ExceptHandlerTarget,
     ImportAlias,
     ClassDefWithKeywords,
     InvalidConstant,
@@ -35,6 +37,7 @@ enum Error {
     FStrWithSpec,
     WhileWithOrelse,
     ForWithOrelse,
+    TryWithOrelse,
     StatementImport,
     StatementDelete,
     StatementGlobal,
@@ -69,6 +72,9 @@ impl Error {
                     "Help: constants may only be made of simple expressions that are guaranteed to be constant.\n",
                     "This excludes anything that calls a function (including constructors) or creates a mutable data type."
                 )
+            ),Self::ArbitraryTry => CoreError::make_raw(
+                "arbitrary try statement",
+                "Help: try statements may only be try/except or try/finally."
             ),
             Self::Async => CoreError::make_raw("functions may not be async", ""),
             Self::ArbitraryTopLevelStatementObj => CoreError::make_raw(
@@ -155,6 +161,10 @@ impl Error {
                 "`for` statements with else blocks are not supported",
                 ""
             ),
+            Self::TryWithOrelse => CoreError::make_raw(
+                "`try` statements with else blocks are not supported",
+                ""
+            ),
             Self::StatementImport => CoreError::make_raw(
                 "import statements must be top-level",
                 "Help: try moving this definition to outside of this function."
@@ -173,6 +183,14 @@ impl Error {
             ),
             Self::StatementWith => CoreError::make_raw(
                 "`with` statements are unsupported",
+                ""
+            ),
+            Self::ExceptHandlerKind => CoreError::make_raw(
+                "except handlers must be `except Exception:`",
+                ""
+            ),
+            Self::ExceptHandlerTarget => CoreError::make_raw(
+                "except handlers must not have a target",
                 ""
             ),
             Self::StatementRaise => CoreError::make_raw(
@@ -249,7 +267,10 @@ impl TryInto<TopLevelStatement> for WithSrc<py::Statement> {
                             symbol,
                             alias: None,
                         }),
-                        _ => Err(Error::ImportAlias.core(location.clone())),
+                        _ => Ok(ImportSymbol {
+                            symbol,
+                            alias,
+                        }),
                     })
                     .collect::<Result<_, _>>()?,
             }),
@@ -270,26 +291,42 @@ impl TryInto<TopLevelStatement> for WithSrc<py::Statement> {
                             symbol,
                             alias: None,
                         }),
-                        _ => Err(Error::ImportAlias.core(location.clone())),
+                        _ => Ok(ImportSymbol {
+                            symbol,
+                            alias,
+                        }),
                     })
                     .collect::<Result<_, _>>()?,
             }),
             py::StatementType::Assign { targets, value } => {
-                if targets.len() != 1 {
+                /*if targets.len() != 1 {
                     Err(Error::InvalidConstant)
-                } else {
+                } else */{
                     let target =
                         WithSrc::new(&src, targets.into_iter().next().unwrap()).try_into()?;
 
-                    if !validate_constant(&value) {
+                    /* if !validate_constant(&value) {
                         Err(Error::NonconstantConstant)
-                    } else if let Located(_, ExpressionObj::Id(name)) = target {
+                    } else */if let Located(_, ExpressionObj::Id(name)) = target {
                         Ok(TopLevelStatementObj::Constant {
                             name,
                             value: WithSrc::new(&src, value).try_into()?,
                         })
                     } else {
-                        Err(Error::InvalidConstant)
+                        let derived_target = match target {
+                            Located(_, ExpressionObj::Attribute { value, name }) => {
+                                Located(value.0.clone(), ExpressionObj::Id(name))
+                            }
+                            _ => todo!(),
+                        };
+                        if let Located(_, ExpressionObj::Id(name)) = derived_target {
+                            Ok(TopLevelStatementObj::Constant {
+                                name,
+                                value: WithSrc::new(&src, value).try_into()?,
+                            })
+                        } else {
+                            Err(Error::InvalidConstant)
+                        }
                     }
                 }
             }
@@ -354,6 +391,18 @@ impl TryInto<TopLevelStatement> for WithSrc<py::Statement> {
             py::StatementType::Expression { expression } => Ok(TopLevelStatementObj::Expression(
                 WithSrc::new(&src, expression).try_into()?,
             )),
+            py::StatementType::Try {
+                body,
+                ..
+            } => {
+                
+                    Ok(TopLevelStatementObj::Try {
+                        body: body
+                            .into_iter()
+                            .map(|statement| WithSrc::new(&src, statement).try_into())
+                            .collect::<Result<Vec<_>, CoreError>>()?,
+                    })
+            },
             _ => Err(Error::ArbitraryTopLevelStatementObj),
         }
         .map(|ok| Located(location.clone(), ok))
@@ -468,7 +517,7 @@ impl TryInto<Params> for WithSrc<py::Parameters> {
 
     fn try_into(self) -> Result<Params, Self::Error> {
         let WithSrc { src, obj } = self;
-
+        /*
         if obj.posonlyargs_count > 0
             || obj.kwonlyargs.len() > 0
             || obj.vararg != py::Varargs::None
@@ -477,7 +526,7 @@ impl TryInto<Params> for WithSrc<py::Parameters> {
             || obj.kw_defaults.len() > 0
         {
             Err(Error::ArbitraryParams.partial())
-        } else {
+        } else { */
             let mut is_instance_method = false;
             if let Some(arg) = obj.args.get(0) {
                 if arg.annotation == None && &arg.arg == "self" {
@@ -494,7 +543,7 @@ impl TryInto<Params> for WithSrc<py::Parameters> {
                     .map(|arg| WithSrc::new(&src, arg).try_into())
                     .collect::<Result<_, CoreError>>()?,
             })
-        }
+        //}
     }
 }
 
@@ -502,7 +551,7 @@ impl TryInto<Param> for WithSrc<py::Parameter> {
     type Error = CoreError;
 
     fn try_into(self) -> Result<Param, Self::Error> {
-        let WithSrc { src, obj } = self;
+        let WithSrc { src, mut obj } = self;
         let location = Location::new(&src, obj.location);
 
         if let Some(annotation) = obj.annotation {
@@ -514,8 +563,21 @@ impl TryInto<Param> for WithSrc<py::Parameter> {
                 },
             ))
         } else {
-            Err(Error::ParamWithoutType.core(location))
-        }
+            // assess and assign obj.notation from arbitrary param values
+            obj.annotation = Some(Box::new(py::Located {
+                location: obj.location,
+                node: py::ExpressionType::Identifier {
+                    name: "Any".to_string(),
+                },
+            }));
+            Ok(Located(
+                location,
+                ParamObj {
+                    arg: obj.arg,
+                    annotation: WithSrc::new(&src, *obj.annotation.unwrap()).try_into()?,
+                },
+            ))
+        }  
     }
 }
 
@@ -722,6 +784,7 @@ impl TryInto<Args> for WithSrc<(Vec<py::Expression>, Vec<py::Keyword>)> {
                 .into_iter()
                 .map(
                     |py::Keyword { name, value }| match WithSrc::new(&src, value).try_into() {
+                        
                         Ok(value) => Ok((name.unwrap(), value)),
                         Err(err) => Err(err),
                     },
@@ -832,6 +895,78 @@ impl TryInto<Statement> for WithSrc<py::Statement> {
         let location = Location::new(&src, location);
 
         match node {
+
+            py::StatementType::FunctionDef {
+                is_async,
+                name,
+                args,
+                body,
+                decorator_list,
+                returns,
+            } => {
+                if is_async {
+                    Err(Error::Async)
+                } else {
+                    Ok(StatementObj::FunctionDef(FunctionDef {
+                        name,
+                        params: WithSrc::new(&src, *args)
+                            .try_into()
+                            .map_err(|err: CoreError| err.updated(&location))?,
+                        body: body
+                            .into_iter()
+                            .map(|statement| WithSrc::new(&src, statement).try_into())
+                            .collect::<Result<Vec<_>, CoreError>>()?,
+                        decorator_list: decorator_list
+                            .into_iter()
+                            .map(|decorator| WithSrc::new(&src, decorator).try_into())
+                            .collect::<Result<Vec<_>, CoreError>>()?,
+                        returns: returns
+                            .map(|returns| WithSrc::new(&src, returns).try_into())
+                            .transpose()?,
+                    }))
+                }
+            },
+            // TODO importing something nested (like import seahorse.prelude) should get changed
+            // into something else syntactically
+            py::StatementType::Import { names } => Ok(StatementObj::Import {
+                symbols: names
+                    .into_iter()
+                    .map(|py::ImportSymbol { symbol, alias }| match alias {
+                        None => Ok(ImportSymbol {
+                            symbol,
+                            alias: None,
+                        }),
+                        _ => Ok(ImportSymbol {
+                            symbol,
+                            alias,
+                        }),
+                    })
+                    .collect::<Result<_, _>>()?,
+            }),
+            py::StatementType::ImportFrom {
+                level,
+                module,
+                names,
+            } => Ok(StatementObj::ImportFrom {
+                level,
+                path: match module {
+                    None => vec![],
+                    Some(path) => path.split('.').map(String::from).collect(),
+                },
+                symbols: names
+                    .into_iter()
+                    .map(|py::ImportSymbol { symbol, alias }| match alias {
+                        None => Ok(ImportSymbol {
+                            symbol,
+                            alias: None,
+                        }),
+                        _ => Ok(ImportSymbol {
+                            symbol,
+                            alias,
+                        }),
+                    })
+                    .collect::<Result<_, _>>()?,
+            }),
             py::StatementType::Break => Ok(StatementObj::Break),
             py::StatementType::Continue => Ok(StatementObj::Continue),
             py::StatementType::Return { value } => Ok(StatementObj::Return {
@@ -941,7 +1076,15 @@ impl TryInto<Statement> for WithSrc<py::Statement> {
             py::StatementType::Nonlocal { .. } => Err(Error::StatementNonlocal),
             py::StatementType::With { .. } => Err(Error::StatementWith),
             py::StatementType::Raise { .. } => Err(Error::StatementRaise),
-            py::StatementType::Try { .. } => Err(Error::StatementTry),
+            py::StatementType::Try { 
+                // do whatever is in the try block and panic on exceptions
+                body, .. } => Ok(StatementObj::Try {
+                body: body
+                    .into_iter()
+                    .map(|statement| WithSrc::new(&src, statement).try_into())
+                    .collect::<Result<_, CoreError>>()?,
+            }),
+
             py::StatementType::ClassDef { .. } => Err(Error::StatementClassDef),
             py::StatementType::FunctionDef { .. } => Err(Error::StatementFunctionDef),
         }

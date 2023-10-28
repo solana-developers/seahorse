@@ -428,6 +428,116 @@ fn build_python_namespace(
                 namespace.insert(name.clone(), export);
             }
             ca::TopLevelStatementObj::Expression(..) => {}
+            ca::TopLevelStatementObj::Try { body } => 
+            {
+                for statement in body.iter() {
+                    let Located(loc, obj) = statement;
+                    match obj {
+                        ca::StatementObj::Import { symbols } => {
+                            for ca::ImportSymbol { symbol, alias } in symbols.iter() {
+                                // TODO i think symbols here can be deep imports (like `import
+                                // seahorse.prelude`)?
+                                let ext = vec![symbol.clone()];
+                                // Safe unwrap - preprocessor has already resolved all imports
+                                let abs = registry.get_abs_path(path, &ext).ok_or(
+                                    Error::ImportNotFound(ext.clone())
+                                        .core()
+                                        .located(loc.clone()),
+                                )?;
+
+                                build_namespace(wip, registry, &abs)?;
+
+                                let obj =
+                                    get_import_obj(wip, &abs, None).map_err(|err| err.located(loc.clone()))?;
+                                let name = alias.clone().unwrap_or(symbol.clone());
+                                namespace.insert(name, NamespacedObject::Import(Located(loc.clone(), obj)));
+                            }
+                        }
+                        ca::StatementObj::ImportFrom {
+                            // TODO relative imports
+                            path: ext,
+                            symbols,
+                            ..
+                        } => {
+                            let abs = registry.get_abs_path(path, ext).ok_or(
+                                Error::ImportNotFound(ext.clone())
+                                    .core()
+                                    .located(loc.clone()),
+                            )?;
+
+                            build_namespace(wip, registry, &abs)?;
+
+                            for ca::ImportSymbol { symbol, alias } in symbols.iter() {
+                                if symbol.as_str() == "*" {
+                                    let glob = match wip.get(&abs).unwrap() {
+                                        Tree::Leaf(Wip::Done(namespace)) => {
+                                            namespace
+                                                .iter()
+                                                .filter_map(|(name, object)| {
+                                                    // Filter out the automatic imports
+                                                    if let NamespacedObject::Automatic(..) = object {
+                                                        None
+                                                    } else {
+                                                        Some(name)
+                                                    }
+                                                })
+                                                .collect::<Vec<_>>()
+                                        }
+                                        Tree::Node(package) => package.keys().collect::<Vec<_>>(),
+                                        _ => panic!(),
+                                    };
+
+                                    for symbol in glob.into_iter() {
+                                        let obj = get_import_obj(wip, &abs, Some(symbol))
+                                            .map_err(|err| err.located(loc.clone()))?;
+                                        namespace.insert(
+                                            symbol.clone(),
+                                            NamespacedObject::Import(Located(loc.clone(), obj)),
+                                        );
+                                    }
+                                } else {
+                                    let obj = get_import_obj(wip, &abs, Some(symbol))
+                                        .map_err(|err| err.located(loc.clone()))?;
+                                    let name = alias.clone().unwrap_or(symbol.clone());
+                                    namespace.insert(name, NamespacedObject::Import(Located(loc.clone(), obj)));
+                                }
+                            }
+                        }
+                        ca::StatementObj::ExceptHandler { 
+                            ..
+                        } => 
+                        {}
+                        ca::StatementObj::Constant { name, value } => 
+                        {
+                            let export =
+                                NamespacedObject::Item(Item::Defined(Located(loc.clone(), ca::TopLevelStatementObj::Constant { name: name.clone(), value: value.clone() })));
+                            namespace.insert(name.clone(), export);
+                        }
+                        ca::StatementObj::Expression( expression ) => 
+                        {
+                            let export =
+                                NamespacedObject::Item(Item::Defined(Located(loc.clone(), ca::TopLevelStatementObj::Expression( expression.clone() ))));
+                            namespace.insert("".to_string(), export);
+                            
+                        }
+                        ca::StatementObj::ClassDef { name, body, bases, decorator_list } => 
+                        {
+                            let export =
+                                NamespacedObject::Item(Item::Defined(Located(loc.clone(), ca::TopLevelStatementObj::ClassDef { name: name.clone(), body: body.clone(), bases: bases.clone(), decorator_list: decorator_list.clone() })));
+                            namespace.insert(name.clone(), export);
+                        }
+                        ca::StatementObj::FunctionDef( function_def ) => 
+                        {
+                            let export =
+                                NamespacedObject::Item(Item::Defined(Located(loc.clone(), ca::TopLevelStatementObj::FunctionDef( function_def.clone() ))));
+                            namespace.insert(function_def.name.clone(), export);
+                        }
+                        _ => 
+                        {}
+
+                    }
+                }
+            }
         }
     }
 

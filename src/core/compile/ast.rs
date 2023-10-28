@@ -8,9 +8,14 @@ use super::{
     },
     check::Ty,
 };
-use crate::core::Tree;
+use crate::core::{Tree, clean::ast::Expression};
 use std::collections::{BTreeMap, BTreeSet};
-
+#[derive(Clone, Debug, Default)]
+pub struct ExceptHandler {
+    
+    pub kind: Option<Expression>,
+    pub body: Vec<Statement>,
+}
 /// A compilation artifact. Does not handle lib.rs, which will be generated separately.
 ///
 /// Collects and propagates features to make generation a bit easier.
@@ -227,6 +232,7 @@ pub struct Block {
 /// A single statement in a function.
 #[derive(Clone, Debug)]
 pub enum Statement {
+    
     Let {
         undeclared: Vec<String>,
         target: LetTarget,
@@ -261,6 +267,13 @@ pub enum Statement {
     For {
         target: LetTarget,
         iter: TypedExpression,
+        body: Block,
+    },
+    Try {
+        body: Block,
+    },
+    ExceptHandler {
+        kind: Option<TypedExpression>,
         body: Block,
     },
 }
