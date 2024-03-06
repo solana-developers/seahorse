@@ -149,10 +149,10 @@ The operation will be an enum (enumerated type), which is a type that can simply
 
 ```
 class Operation(Enum):
-  ADD = 0
-  SUB = 1
-  MUL = 2
-  DIV = 3
+  Add = 0
+  Sub = 1
+  Mul = 2
+  Div = 3
 ```
 
 For parsing purposes, each variant in the enum needs a unique number associated with it. These have no bearing on the generated code.
@@ -168,13 +168,13 @@ def do_operation(owner: Signer, calculator: Calculator, op: Operation, num: i64)
   assert owner.key() == calculator.owner, 'This is not your calculator!'
 
 
-  if op == Operation.ADD:
+  if op == Operation.Add:
     calculator.display += num
-  elif op == Operation.SUB:
+  elif op == Operation.Sub:
     calculator.display -= num
-  elif op == Operation.MUL:
+  elif op == Operation.Mul:
     calculator.display *= num
-  elif op == Operation.DIV:
+  elif op == Operation.Div:
     calculator.display //= num
 ```
 
