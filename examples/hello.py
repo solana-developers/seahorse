@@ -5,7 +5,7 @@
 
 from seahorse.prelude import *
 
-declare_id('')
+declare_id('Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS')
 
 
 class Hello(Account):
