@@ -100,9 +100,13 @@ fn build_program(project_path: &PathBuf, program_name: String) -> Result<String,
 
             let anchor_output = Command::new("anchor").args(args).output()?;
             let stderr = String::from_utf8(anchor_output.stderr)?;
+            let filtered_stderr = stderr.lines()
+                .filter(|line| !line.trim().starts_with("Compiling"))
+                .collect::<Vec<_>>()
+                .join("\n");
 
             if !anchor_output.status.success()
-                || stderr.contains("error") | stderr.contains("panicked")
+                || filtered_stderr.contains("error") | filtered_stderr.contains("panicked")
             {
                 let report_note = concat!(
                     "This is most likely a bug in the Seahorse compiler!\n\n",
