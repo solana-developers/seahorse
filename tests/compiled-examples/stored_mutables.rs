@@ -353,8 +353,7 @@ pub fn test_stored_mutables_handler<'info>(
     mut signer: SeahorseSigner<'info, '_>,
     mut data: Mutable<LoadedData<'info, '_>>,
 ) -> () {
-    assign!(
-        (*(*data
+    assign!((*(*data
             .borrow_mut()
             .array_2d
             .borrow_mut()
@@ -366,8 +365,7 @@ pub fn test_stored_mutables_handler<'info>(
 
     data.borrow().int_list.borrow_mut().push(0);
 
-    assign!(
-        (*(*data
+    assign!((*(*data
             .borrow_mut()
             .int_list_2d
             .borrow_mut()
@@ -382,9 +380,7 @@ pub fn test_stored_mutables_handler<'info>(
         data.borrow().string.clone() + &" World".to_string()
     );
 
-    data.borrow().nested.reset();
-
-    (*data.borrow().nested_list.borrow().index_wrapped(0.into())).reset();
+    data.borrow().nested.reset();(*data.borrow().nested_list.borrow().index_wrapped(0.into())).reset();
 
     data.borrow()
         .nested_list
@@ -610,7 +606,7 @@ pub mod seahorse_util {
 
     #[derive(Clone, Debug)]
     pub struct CpiAccount<'info> {
-        #[doc = "CHECK: CpiAccounts temporarily store AccountInfos."]
+        /// CHECK: CpiAccounts temporarily store AccountInfos.
         pub account_info: AccountInfo<'info>,
         pub is_writable: bool,
         pub is_signer: bool,
@@ -618,10 +614,8 @@ pub mod seahorse_util {
     }
 
     #[macro_export]
-    macro_rules! seahorse_const {
-        ($ name : ident , $ value : expr) => {
-            macro_rules! $name {
-                () => {
+    macro_rules! seahorse_const {($ name: ident, $ value: expr) => {
+            macro_rules! $name {() => {
                     $value
                 };
             }
@@ -638,8 +632,7 @@ pub mod seahorse_util {
         fn store(loaded: Self::Loaded) -> Self;
     }
 
-    macro_rules! Loaded {
-        ($ name : ty) => {
+    macro_rules! Loaded {($ name: ty) => {
             <$name as Loadable>::Loaded
         };
     }
@@ -647,8 +640,7 @@ pub mod seahorse_util {
     pub(crate) use Loaded;
 
     #[macro_export]
-    macro_rules! assign {
-        ($ lval : expr , $ rval : expr) => {{
+    macro_rules! assign {($ lval: expr, $ rval: expr) => {{
             let temp = $rval;
 
             $lval = temp;
@@ -656,8 +648,7 @@ pub mod seahorse_util {
     }
 
     #[macro_export]
-    macro_rules! index_assign {
-        ($ lval : expr , $ idx : expr , $ rval : expr) => {
+    macro_rules! index_assign {($ lval: expr, $ idx: expr, $ rval: expr) => {
             let temp_rval = $rval;
             let temp_idx = $idx;
 
@@ -682,7 +673,7 @@ mod stored_mutables {
     pub struct Init<'info> {
         #[account(mut)]
         pub signer: Signer<'info>,
-        # [account (init , space = std :: mem :: size_of :: < dot :: program :: Data > () + 8 + (1024 as usize) , payer = signer , seeds = [signer . key () . as_ref ()] , bump)]
+        #[account(init, space = std::mem::size_of::<dot::program::Data> () + 8 + (1024 as usize), payer = signer, seeds = [signer.key ().as_ref ()], bump)]
         pub data: Box<Account<'info, dot::program::Data>>,
         pub rent: Sysvar<'info, Rent>,
         pub system_program: Program<'info, System>,

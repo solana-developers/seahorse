@@ -960,7 +960,7 @@ impl<'a> ToTokens for AccountAnnotationWithTyExpr<'a> {
 
         let unchecked = if let &&AccountTyExpr::UncheckedAccount = ty_expr {
             Some(quote! {
-                #[doc="CHECK: This account is unchecked."]
+                /// CHECK: This account is unchecked.
             })
         } else {
             None
@@ -1644,7 +1644,7 @@ fn make_lib(
 
             #[derive(Clone, Debug)]
             pub struct CpiAccount<'info> {
-                #[doc="CHECK: CpiAccounts temporarily store AccountInfos."]
+                /// CHECK: CpiAccounts temporarily store AccountInfos.
                 pub account_info: AccountInfo<'info>,
                 pub is_writable: bool,
                 pub is_signer: bool,
@@ -1821,7 +1821,40 @@ fn beautify_impl(tokens: TokenStream) -> CResult<String> {
     let re = Regex::new(r"\n\n\n+").unwrap();
     source = re.replace_all(&source, "\n\n").to_string();
 
-    return Ok(source);
+    // Convert #[doc = "CHECK: ..."] back to /// CHECK: ...
+    let re = Regex::new(r#"#\[doc = r" CHECK: (.*?)"\]"#).unwrap();
+    source = re.replace_all(&source, "/// CHECK: $1").to_string();
+
+    // rustfmt misses some stuff around attributes, so we'll fix that here
+    // Remove spaces around double colons
+    let re = Regex::new(r"\s*::\s*").unwrap();
+    source = re.replace_all(&source, "::").to_string();
+
+    // Remove spaces in annotation name, like # [ account and # [ instruction
+    let re = Regex::new(r"#\s*\[\s*(\w+) \(").unwrap();
+    source = re.replace_all(&source, "#[$1(").to_string();
+
+    // Remove spaces before commas
+    let re = Regex::new(r"\s+,").unwrap();
+    source = re.replace_all(&source, ",").to_string();
+
+    // Remove space before colon (no ternary operator in Rust)
+    let re = Regex::new(r"\s+:\s").unwrap();
+    source = re.replace_all(&source, ": ").to_string();
+
+    // Remove spaces around the contents of angle brackets, so < foo > to <foo>
+    let re = Regex::new(r"<\s*(.*?)\s*>").unwrap();
+    source = re.replace_all(&source, "<$1>").to_string();
+
+    // Remove spaces around periods
+    let re = Regex::new(r"\s+\.\s+").unwrap();
+    source = re.replace_all(&source, ".").to_string();
+
+    // Remove spaces between a word and (), i.e. fn calls
+    let re = Regex::new(r"(.*)+\s*\(").unwrap();
+    source = re.replace_all(&source, "$1(").to_string();
+
+    Ok(source)
 }
 
 fn beautify(tokens: TokenStream) -> CResult<String> {

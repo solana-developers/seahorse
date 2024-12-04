@@ -248,7 +248,7 @@ pub mod seahorse_util {
 
     #[derive(Clone, Debug)]
     pub struct CpiAccount<'info> {
-        #[doc = "CHECK: CpiAccounts temporarily store AccountInfos."]
+        /// CHECK: CpiAccounts temporarily store AccountInfos.
         pub account_info: AccountInfo<'info>,
         pub is_writable: bool,
         pub is_signer: bool,
@@ -256,10 +256,8 @@ pub mod seahorse_util {
     }
 
     #[macro_export]
-    macro_rules! seahorse_const {
-        ($ name : ident , $ value : expr) => {
-            macro_rules! $name {
-                () => {
+    macro_rules! seahorse_const {($ name: ident, $ value: expr) => {
+            macro_rules! $name {() => {
                     $value
                 };
             }
@@ -276,8 +274,7 @@ pub mod seahorse_util {
         fn store(loaded: Self::Loaded) -> Self;
     }
 
-    macro_rules! Loaded {
-        ($ name : ty) => {
+    macro_rules! Loaded {($ name: ty) => {
             <$name as Loadable>::Loaded
         };
     }
@@ -285,8 +282,7 @@ pub mod seahorse_util {
     pub(crate) use Loaded;
 
     #[macro_export]
-    macro_rules! assign {
-        ($ lval : expr , $ rval : expr) => {{
+    macro_rules! assign {($ lval: expr, $ rval: expr) => {{
             let temp = $rval;
 
             $lval = temp;
@@ -294,8 +290,7 @@ pub mod seahorse_util {
     }
 
     #[macro_export]
-    macro_rules! index_assign {
-        ($ lval : expr , $ idx : expr , $ rval : expr) => {
+    macro_rules! index_assign {($ lval: expr, $ idx: expr, $ rval: expr) => {
             let temp_rval = $rval;
             let temp_idx = $idx;
 
@@ -320,9 +315,9 @@ mod hello {
     pub struct Init<'info> {
         #[account(mut)]
         pub owner: Signer<'info>,
-        # [account (init , space = std :: mem :: size_of :: < dot :: program :: Hello > () + 8 , payer = owner , seeds = ["hello" . as_bytes () . as_ref ()] , bump)]
+        #[account(init, space = std::mem::size_of::<dot::program::Hello> () + 8, payer = owner, seeds = ["hello".as_bytes ().as_ref ()], bump)]
         pub hello: Box<Account<'info, dot::program::Hello>>,
-        # [account (init , payer = owner , seeds = ["hello-mint" . as_bytes () . as_ref ()] , bump , mint :: decimals = 0 , mint :: authority = hello)]
+        #[account(init, payer = owner, seeds = ["hello-mint".as_bytes ().as_ref ()], bump, mint::decimals = 0, mint::authority = hello)]
         pub mint: Box<Account<'info, Mint>>,
         pub rent: Sysvar<'info, Rent>,
         pub system_program: Program<'info, System>,
