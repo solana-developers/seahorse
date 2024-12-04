@@ -123,11 +123,11 @@ pub fn init(args: InitArgs) -> Result<(), Box<dyn Error>> {
             if let Ok(version) = solana {
                 let (major, minor, patch) = semver(r"solana-cli (\S+)", &version);
 
-                if (major, minor) < (1, 9) {
+                if (major, minor) < (2, 0) {
                     return Err(error_message(format!(
                         concat!(
-                            "Solana (>=1.9.0) not found\n\n",
-                            "Seahorse depends on Anchor (>=1.9.0), found: {}.{}.{}"
+                            "Solana (>=2.0.0) not found\n\n",
+                            "Seahorse depends on Solana (>=2.0.0), found: {}.{}.{}"
                         ),
                         major, minor, patch
                     ))
