@@ -210,12 +210,12 @@ pub fn init(args: InitArgs) -> Result<(), Box<dyn Error>> {
             // See https://github.com/coral-xyz/anchor/pull/2756/files
             // Can also remove here when Anchor release that fix
             cargo["dependencies"]["ahash"] =
-                Item::Value(Value::String(Formatted::new("=0.8.6".to_string())));
+                Item::Value(Value::String(Formatted::new("=0.8.9".to_string())));
 
             let mut pyth = InlineTable::new();
             pyth.insert(
                 "version",
-                Value::String(Formatted::new("0.8.0".to_string())),
+                Value::String(Formatted::new("0.10.2".to_string())),
             );
             pyth.insert("optional", Value::Boolean(Formatted::new(true)));
             cargo["dependencies"]["pyth-sdk-solana"] = Item::Value(Value::InlineTable(pyth));
