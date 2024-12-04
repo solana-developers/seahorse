@@ -9,6 +9,7 @@ map_const!(README, "readme.md");
 map_const!(SEAHORSE_PRELUDE, "seahorse_prelude.py");
 map_const!(SEAHORSE_PYTH, "seahorse_pyth.py");
 map_const!(SEAHORSE_SRC_TEMPLATE, "seahorse_src_template.py");
+map_const!(SEAHORSE_UTIL, "seahorse_util.rs");
 
 // Pyth price addresses
 include!(concat!(env!("OUT_DIR"), "/pyth.rs"));

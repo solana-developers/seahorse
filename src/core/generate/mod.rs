@@ -1,6 +1,5 @@
 use crate::{
-    core::{compile::ast::*, compile::build::BuildOutput, util::*, CoreError},
-    match1,
+    core::{compile::{ast::*, build::BuildOutput}, util::*, CoreError}, data::SEAHORSE_UTIL, match1
 };
 use proc_macro2::{Ident, Literal as PM2Literal, TokenStream};
 use quote::{format_ident, quote, ToTokens};
@@ -1304,7 +1303,6 @@ fn make_lib(
     origin: &Artifact,
     path: &Vec<String>,
     program_name: &String,
-    features: &BTreeSet<Feature>,
 ) -> CResult<String> {
     let program_name = ident(program_name);
 
@@ -1476,15 +1474,6 @@ fn make_lib(
 
     let path = StaticPath(path);
 
-    let maybe_pyth_import = if (features.contains(&Feature::Pyth)) {
-        Some(quote! {
-            // Re-export for ease of access
-            pub use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
-        })
-    } else {
-        None
-    };
-
     let text = beautify(quote! {
         use std::{cell::RefCell, rc::Rc};
         use anchor_lang::prelude::*;
@@ -1496,245 +1485,8 @@ fn make_lib(
 
         declare_id!(#id);
 
-        // TODO maybe hide the names better? wouldn't want any namespace collisions
-        // Utility structs, functions, and macros to beautify the generated code a little.
-        pub mod seahorse_util {
-            use super::*;
-            use std::{collections::HashMap, fmt::Debug, ops::{Deref, Index, IndexMut}};
-            #maybe_pyth_import
-
-            // A "Python mutable" object.
-            pub struct Mutable<T>(Rc<RefCell<T>>);
-
-            impl<T> Mutable<T> {
-                pub fn new(obj: T) -> Self {
-                    Self(Rc::new(RefCell::new(obj)))
-                }
-            }
-
-            impl <T> Clone for Mutable<T> {
-                fn clone(&self) -> Self {
-                    Self(self.0.clone())
-                }
-            }
-
-            impl<T> Deref for Mutable<T> {
-                type Target = Rc<RefCell<T>>;
-
-                fn deref(&self) -> &Self::Target {
-                    &self.0
-                }
-            }
-
-            impl<T: Debug> Debug for Mutable<T> {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    write!(f, "{:?}", self.0)
-                }
-            }
-
-            impl <T: Default> Default for Mutable<T> {
-                fn default() -> Self {
-                    Self::new(T::default())
-                }
-            }
-
-            // Pythonic indexing for vec/array types (Seahorse List, Array types)
-            pub trait IndexWrapped {
-                type Output;
-
-                fn index_wrapped(&self, index: i128) -> &Self::Output;
-            }
-
-            pub trait IndexWrappedMut: IndexWrapped {
-                fn index_wrapped_mut(&mut self, index: i128) -> &mut <Self as IndexWrapped>::Output;
-            }
-
-            impl<T> IndexWrapped for Vec<T> {
-                type Output = T;
-
-                fn index_wrapped(&self, mut index: i128) -> &Self::Output {
-                    if index < 0 {
-                        index += self.len() as i128;
-                    }
-
-                    let index: usize = index.try_into().unwrap();
-
-                    self.index(index)
-                }
-            }
-
-            impl<T> IndexWrappedMut for Vec<T> {
-                fn index_wrapped_mut(&mut self, mut index: i128) -> &mut <Self as IndexWrapped>::Output {
-                    if index < 0 {
-                        index += self.len() as i128;
-                    }
-
-                    let index: usize = index.try_into().unwrap();
-
-                    self.index_mut(index)
-                }
-            }
-
-            impl<T, const N: usize> IndexWrapped for [T; N] {
-                type Output = T;
-
-                fn index_wrapped(&self, mut index: i128) -> &Self::Output {
-                    if index < 0 {
-                        index += N as i128;
-                    }
-
-                    let index: usize = index.try_into().unwrap();
-
-                    self.index(index)
-                }
-            }
-
-            impl<T, const N: usize> IndexWrappedMut for [T; N] {
-                fn index_wrapped_mut(&mut self, mut index: i128) -> &mut <Self as IndexWrapped>::Output {
-                    if index < 0 {
-                        index += N as i128;
-                    }
-
-                    let index: usize = index.try_into().unwrap();
-
-                    self.index_mut(index)
-                }
-            }
-
-            // An initialized account with a bump seed.
-            #[derive(Clone)]
-            pub struct Empty<T: Clone> {
-                pub account: T,
-                pub bump: Option<u8>
-            }
-
-            // A struct to contain programs that need to be used for CPIs, inferred by Seahorse.
-            #[derive(Clone, Debug)]
-            pub struct ProgramsMap<'info>(pub HashMap<&'static str, AccountInfo<'info>>);
-
-            impl<'info> ProgramsMap<'info> {
-                pub fn get(&self, name: &'static str) -> AccountInfo<'info> {
-                    self.0.get(name).unwrap().clone()
-                }
-            }
-
-            // A generic container for an account and programs.
-            //
-            // The 'info lifetime designates the lifetime of the data in the Anchor `Context` struct,
-            // and the 'entrypoint lifetime designates the lifetime of the data in the instruction's
-            // entrypoint function.
-            #[derive(Clone, Debug)]
-            pub struct WithPrograms<'info, 'entrypoint, A> {
-                pub account: &'entrypoint A,
-                pub programs: &'entrypoint ProgramsMap<'info>,
-            }
-
-            impl<'info, 'entrypoint, A> Deref for WithPrograms<'info, 'entrypoint, A> {
-                type Target = A;
-
-                fn deref(&self) -> &Self::Target {
-                    &self.account
-                }
-            }
-
-            // Boxed account with programs
-            pub type SeahorseAccount<'info, 'entrypoint, A> = WithPrograms<'info, 'entrypoint, Box<Account<'info, A>>>;
-            // Signer with programs
-            pub type SeahorseSigner<'info, 'entrypoint> = WithPrograms<'info, 'entrypoint, Signer<'info>>;
-
-            #[derive(Clone, Debug)]
-            pub struct CpiAccount<'info> {
-                #[doc="CHECK: CpiAccounts temporarily store AccountInfos."]
-                pub account_info: AccountInfo<'info>,
-                pub is_writable: bool,
-                pub is_signer: bool,
-                pub seeds: Option<Vec<Vec<u8>>>
-            }
-
-            // This macro just expands to another macro, which is how constants are defined.
-            // The `pub(crate) use ...` lets us treat the macro exactly like any other crate-
-            // exported item.
-            #[macro_export]
-            macro_rules! seahorse_const {
-                ($name:ident, $value:expr) => {
-                    macro_rules! $name {
-                        () => { $value }
-                    }
-                    pub(crate) use $name;
-                }
-            }
-
-            // Trait that allows us to easily define Loaded- (runtime) types for stored data.
-            //
-            // I tried, but this trait can't be used for accounts due to how lifetimes need to be
-            // used in the program vs. how Rust allows us to use them for trait impls.
-            pub trait Loadable {
-                type Loaded;
-
-                fn load(stored: Self) -> Self::Loaded;
-
-                fn store(loaded: Self::Loaded) -> Self;
-            }
-
-            macro_rules! Loaded {
-                ($name:ty) => {
-                    <$name as Loadable>::Loaded
-                }
-            }
-
-            pub(crate) use Loaded;
-
-            // Because of how `RefCell::borrow_mut()/borrow()` works, if we try to borrow from the
-            // same value we're assigning to it will cause an error at runtime, for example:
-            //
-            // obj.borrow_mut().x = obj.borrow().y + 1;
-            //
-            // ...will always error, because we can't `borrow_mut` `obj` while it's already being
-            // `borrow`'d. The simple solution is to decompose the assignment into its lval and rval
-            // and assign them in two statements:
-            //
-            // let temp = obj.borrow().y + 1;
-            // obj.borrow_mut().x = temp;
-            //
-            // This isn't always needed, of course, but it's difficult to figure out exactly when we
-            // need to use this approach at compile time. For example:
-            //
-            // let mut original: Mutable<X> = ... ;
-            // let mut maybe_copy: Mutable<X> = ... ;
-            //
-            // if condition { maybe_copy = original.clone(); }
-            //
-            // maybe_copy.borrow_mut().x = original.borrow().y + 1;
-            //
-            // Here, an error will only be thrown if `condition` was true, since we'll still be
-            // borrowing the same object twice.
-            #[macro_export]
-            macro_rules! assign {
-                ($lval:expr, $rval:expr) => {
-                    {
-                        let temp = $rval;
-                        $lval = temp;
-                    }
-                }
-            }
-
-            // Same problem from above applies, but in a more complex way because indices are
-            // involved. To support Python's "negative index wraparound" syntax, we'll need to find
-            // the absolute index of a list based on the length of the list itself. This involves a
-            // borrow, so we need to separate the index from the lval as well.
-            #[macro_export]
-            macro_rules! index_assign {
-                ($lval:expr, $idx:expr, $rval:expr) => {
-                    let temp_rval = $rval;
-                    let temp_idx = $idx;
-                    $lval[temp_idx] = temp_rval;
-                }
-            }
-
-            pub(crate) use seahorse_const;
-            pub(crate) use assign;
-            pub(crate) use index_assign;
-        }
+        mod seahorse_util;
+        use seahorse_util::*;
 
         #[program]
         mod #program_name {
@@ -1856,7 +1608,15 @@ impl TryFrom<(BuildOutput, String)> for GenerateOutput {
             .transpose()?;
 
         let features = features.take();
-        let lib = make_lib(origin, &build_output.origin, &program_name, &features)?;
+        let maybe_pyth_import = if features.contains(&Feature::Pyth) {
+            Some(quote! {
+                // Re-export for ease of access
+                pub use pyth_sdk_solana::{load_price_feed_from_account_info, PriceFeed};
+            })
+        } else {
+            None
+        };
+        let lib = make_lib(origin, &build_output.origin, &program_name)?;
 
         add_mods(&mut tree);
 
@@ -1875,6 +1635,18 @@ impl TryFrom<(BuildOutput, String)> for GenerateOutput {
             node.insert(
                 "lib".to_string(),
                 Tree::Leaf(format!("{}\n{}\n{}", allows, mod_text, lib)),
+            );
+
+            node.insert(
+                "seahorse_util".to_string(),
+                Tree::Leaf(
+                    format!(
+                        "{}\n{}\n{}",
+                        allows,
+                        maybe_pyth_import.unwrap_or_default(),
+                        SEAHORSE_UTIL
+                    )
+                )
             );
         }
 
